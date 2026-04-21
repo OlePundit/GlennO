@@ -6,20 +6,45 @@ import { FileText, Eye, Users, BookOpen, TrendingUp, Plus, Clock } from 'lucide-
 import api from '@/lib/api';
 import { Blog, BlogStats } from '@/types';
 import { formatDateShort } from '@/lib/utils';
+import axios from 'axios';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function AdminDashboard() {
+  const { isLoading: authLoading, authToken } = useAuth();
+
   const [stats, setStats] = useState<BlogStats | null>(null);
   const [recentBlogs, setRecentBlogs] = useState<Blog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      api.get('/admin/stats'),
-      api.get('/admin/blogs?per_page=5'),
-    ]).then(([statsRes, blogsRes]) => {
-      setStats(statsRes.data);
-      setRecentBlogs(blogsRes.data.data);
-    }).finally(() => setLoading(false));
+    if (!authToken) return;
+    const fetchBlogs = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/admin/blogs?per_page=5`, { headers: { Authorization: `Bearer ${authToken}` } });
+        setRecentBlogs(response.data.data);
+      } catch (err) {
+        setError('Failed to load recent blogs. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    const fetchStats = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await axios.get(`${process.env.NEXT_PUBLIC_API_URL}/admin/stats`, { headers: { Authorization: `Bearer ${authToken}` } });
+        setStats(response.data);
+      } catch (err) {
+        setError('Failed to load stats. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBlogs();
+    fetchStats();
   }, []);
 
   const statCards = stats

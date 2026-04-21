@@ -7,7 +7,7 @@ import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 
 function LoginForm() {
   const router = useRouter();
-  const { login, isAuthenticated, loading } = useAuth();
+  const { login, isLoading, authToken, user } = useAuth();
   const [email, setEmail] = useState('admin@blog.com');
   const [password, setPassword] = useState('password');
   const [showPassword, setShowPassword] = useState(false);
@@ -15,8 +15,8 @@ function LoginForm() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!loading && isAuthenticated) router.replace('/admin');
-  }, [isAuthenticated, loading, router]);
+    if (!isLoading && authToken) router.replace('/admin');
+  }, [authToken, isLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { LayoutDashboard, FileText, Users, LogOut, Rss, PenSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
+import { Suspense } from "react";
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard, exact: true },
@@ -15,18 +16,19 @@ const navItems = [
 ];
 
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading, logout, user } = useAuth();
+  const { login, isLoading, authToken, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !isAuthenticated && pathname !== '/admin/login') {
+    if (!authToken && pathname !== '/admin/login') {
       router.replace('/admin/login');
     }
-  }, [isAuthenticated, loading, pathname, router]);
+  }, [authToken, pathname, router]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
-  if (!isAuthenticated) return null;
+  if (pathname === '/admin/login') return <>{children}</>;
+  if (isLoading) return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner size="lg" /></div>;
+  if (!authToken) return null;
 
   const isActive = (href: string, exact = false) => {
     if (exact) return pathname === href;
@@ -91,10 +93,15 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({ 
+  children 
+}: Readonly<{
+   children: React.ReactNode }>) {
   return (
-    <AuthProvider>
-      <AdminLayoutInner>{children}</AdminLayoutInner>
-    </AuthProvider>
+    <Suspense>
+      <AuthProvider>
+        <AdminLayoutInner>{children}</AdminLayoutInner>
+      </AuthProvider>
+    </Suspense>
   );
 }

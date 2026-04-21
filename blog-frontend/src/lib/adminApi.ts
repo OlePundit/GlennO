@@ -1,0 +1,373 @@
+const BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
+
+function getToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('admin_token');
+}
+
+async function request<T = unknown>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...((options.headers as Record<string, string>) || {}),
+    },
+  });
+
+  if (!res.ok) {
+    if (res.status === 401 && typeof window !== 'undefined') {
+      localStorage.removeItem('admin_token');
+      window.location.href = '/admin/login';
+    }
+    const text = await res.text();
+    throw new Error(text || `Request failed: ${res.status}`);
+  }
+
+  if (res.status === 204) return {} as T;
+  return res.json();
+}
+
+// ─── Auth ────────────────────────────────────────────────────────────────────
+
+export async function login(email: string, password: string) {
+  const data = await request<{ token: string; user: AdminUser }>('/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('admin_token', data.token);
+  }
+  return data;
+}
+
+export function logout() {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('admin_token');
+  }
+}
+
+export function isAuthenticated(): boolean {
+  return Boolean(getToken());
+}
+
+// ─── Blogs ───────────────────────────────────────────────────────────────────
+
+export async function getBlogs(): Promise<Blog[]> {
+  const data = await request<Record<string, unknown>>('/blogs');
+  if (Array.isArray(data)) return data as unknown as Blog[];
+  if (Array.isArray((data as { blogs?: Blog[] }).blogs)) return (data as { blogs: Blog[] }).blogs;
+  if (Array.isArray((data as { data?: Blog[] }).data)) return (data as { data: Blog[] }).data;
+  return [];
+}
+
+export async function getBlog(slug: string): Promise<Blog> {
+  const data = await request<{ data?: Blog } | Blog>(`/blogs/${slug}`);
+  return (data as { data?: Blog }).data ?? (data as Blog);
+}
+
+export async function createBlog(payload: Partial<Blog>, thumbnailFile?: File) {
+  if (thumbnailFile) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const form = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && k !== 'thumbnail') form.append(k, String(v));
+    });
+    form.append('thumbnail', thumbnailFile);
+    const res = await fetch(`${API_URL}/blogs`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+  return request('/blogs', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateBlog(slug: string, payload: Partial<Blog>, thumbnailFile?: File) {
+  if (thumbnailFile) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const form = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && k !== 'thumbnail') form.append(k, String(v));
+    });
+    form.append('thumbnail', thumbnailFile);
+    const res = await fetch(`${API_URL}/blogs/${slug}`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+  const { thumbnail: _thumbnail, ...rest } = payload;
+  return request(`/blogs/${slug}`, {
+    method: 'PUT',
+    body: JSON.stringify(rest),
+  });
+}
+
+export async function deleteBlog(slug: string) {
+  return request(`/blogs/${slug}`, { method: 'DELETE' });
+}
+
+// ─── Landing Pages ───────────────────────────────────────────────────────────
+
+export async function getLPs(): Promise<LP[]> {
+  const data = await request<Record<string, unknown>>('/lps');
+  if (Array.isArray(data)) return data as unknown as LP[];
+  if (Array.isArray((data as { data?: LP[] }).data)) return (data as { data: LP[] }).data;
+  return [];
+}
+
+export async function getLP(slug: string): Promise<LP> {
+  const data = await request<{ data?: LP } | LP>(`/lps/${slug}`);
+  return (data as { data?: LP }).data ?? (data as LP);
+}
+
+export async function createLP(payload: Partial<LP>) {
+  return request('/lps', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateLP(slug: string, payload: Partial<LP>) {
+  return request(`/lps/${slug}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteLP(slug: string) {
+  return request(`/lps/${slug}`, { method: 'DELETE' });
+}
+
+// ─── Services ────────────────────────────────────────────────────────────────
+
+export async function getServices(): Promise<Service[]> {
+  const data = await request<Record<string, unknown>>('/services');
+  if (Array.isArray(data)) return data as unknown as Service[];
+  if (Array.isArray((data as { data?: Service[] }).data)) return (data as { data: Service[] }).data;
+  return [];
+}
+
+export async function getService(slug: string): Promise<Service> {
+  const data = await request<{ data?: Service } | Service>(`/services/${slug}`);
+  return (data as { data?: Service }).data ?? (data as Service);
+}
+
+export async function createService(payload: Partial<Service>, thumbnailFile?: File) {
+  if (thumbnailFile) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const form = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && k !== 'thumbnail') form.append(k, String(v));
+    });
+    form.append('thumbnail', thumbnailFile);
+    const res = await fetch(`${API_URL}/services`, {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+  return request('/services', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateService(slug: string, payload: Partial<Service>, thumbnailFile?: File) {
+  if (thumbnailFile) {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+    const form = new FormData();
+    Object.entries(payload).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && k !== 'thumbnail') form.append(k, String(v));
+    });
+    form.append('thumbnail', thumbnailFile);
+    const res = await fetch(`${API_URL}/services/${slug}`, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: form,
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  }
+  const { thumbnail: _thumbnail, ...rest } = payload;
+  return request(`/services/${slug}`, {
+    method: 'PUT',
+    body: JSON.stringify(rest),
+  });
+}
+
+export async function deleteService(slug: string) {
+  return request(`/services/${slug}`, { method: 'DELETE' });
+}
+
+// ─── Contacts ────────────────────────────────────────────────────────────────
+
+// Original – returns array (compatible with dashboard)
+export async function getContacts(): Promise<Contact[]> {
+  const data = await request<Record<string, unknown>>('/contact?paginate=false');
+  // If your backend can accept ?paginate=false, great.
+  // Otherwise, fetch all contacts manually (not ideal).
+  if (Array.isArray(data)) return data as Contact[];
+  if (Array.isArray((data as { data?: Contact[] }).data)) return (data as { data: Contact[] }).data;
+  return [];
+}
+
+// New – returns paginated object (for admin contacts page)
+export async function getContactsPaginated(page = 1): Promise<{
+  data: Contact[];
+  meta: { current_page: number; last_page: number; per_page: number; total: number };
+  links: { first: string; last: string; prev: string | null; next: string | null };
+}> {
+  const response = await request<any>(`/contact?page=${page}`);
+  return {
+    data: response.data,
+    meta: response.meta,
+    links: response.links,
+  };
+}
+
+// ─── Newsletter ───────────────────────────────────────────────────────────────
+
+export async function getNewsletters(): Promise<NewsletterSubscriber[]> {
+  const data = await request<Record<string, unknown>>('/newsletter');
+  if (Array.isArray(data)) return data as unknown as NewsletterSubscriber[];
+  if (Array.isArray((data as { data?: NewsletterSubscriber[] }).data)) return (data as { data: NewsletterSubscriber[] }).data;
+  return [];
+}
+
+export async function deleteNewsletter(id: number) {
+  return request(`/newsletter/${id}`, { method: 'DELETE' });
+}
+
+// ─── Body Image Upload ────────────────────────────────────────────────────────
+
+export async function uploadBodyImage(file: File): Promise<string> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+  const form = new FormData();
+  form.append('image', file);
+  const res = await fetch(`${API_URL}/upload-image`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: form,
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `Upload failed: ${res.status}`);
+  }
+  const data: { path: string } = await res.json();
+  const storageBase = BASE_URL.endsWith('/api') ? BASE_URL.slice(0, -4) : BASE_URL;
+  return `${storageBase}/storage/${data.path}`;
+}
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export interface Blog {
+  id: number;
+  slug: string;
+  title: string;
+  body: string;
+  description?: string;
+  meta_description?: string;
+  thumbnail?: string;
+  category?: string;
+  sub_category?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LP {
+  id: number;
+  slug: string;
+  title?: string;
+  title1?: string;
+  title2?: string;
+  title3?: string;
+  img1?: string;
+  img2?: string;
+  img3?: string;
+  faq1?: string;
+  faq2?: string;
+  faq3?: string;
+  faq4?: string;
+  faq5?: string;
+  ans1?: string;
+  ans2?: string;
+  ans3?: string;
+  ans4?: string;
+  ans5?: string;
+  benefits?: string;
+  benefits2?: string;
+  intro?: string;
+  category?: string;
+  meta_description?: string;
+  created_at?: string;
+}
+
+export interface Service {
+  id: number;
+  slug: string;
+  title: string;
+  body: string;
+  thumbnail?: string;
+  category?: string;
+  sub_category?: string;
+  meta_description?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface Contact {
+  id: number;
+  name: string;
+  email: string;
+  message: string;
+  created_at?: string;
+}
+
+export interface NewsletterSubscriber {
+  id: number;
+  email: string;
+  created_at?: string;
+}

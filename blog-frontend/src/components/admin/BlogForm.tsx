@@ -4,10 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Save, Upload, X, Tag, ArrowLeft } from 'lucide-react';
-import RichTextEditor from './RichTextEditor';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Link from '@tiptap/extension-link';
+import Underline from '@tiptap/extension-underline';
 import api from '@/lib/api';
 import { Blog, Author } from '@/types';
 import { getImageUrl } from '@/lib/utils';
+import { CustomImage } from '@/components/RichTextEditor/CustomImage';
+import ImageUploadModal from '@/components/RichTextEditor/ImageUploadModal';
 
 interface BlogFormProps {
   blog?: Blog;
@@ -33,8 +38,12 @@ export default function BlogForm({ blog, isEdit = false }: BlogFormProps) {
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
+  const [wordCount, setWordCount] = useState(0);
+  const [, forceRender] = useState(0);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   useEffect(() => {
     api.get('/admin/authors').then((res) => {
       setAuthors(res.data);
@@ -68,7 +77,26 @@ export default function BlogForm({ blog, isEdit = false }: BlogFormProps) {
     if (!form.author_id) errs.author_id = 'Please select an author';
     return errs;
   };
-
+  const editor = useEditor({
+    immediatelyRender: false,
+    extensions: [
+      StarterKit,
+      Underline,
+      Link.configure({ openOnClick: false }),
+      CustomImage,
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        class: 'min-h-[300px] px-3 py-2.5 text-sm text-gray-500 focus:outline-none prose max-w-none',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      const text = editor.getText();
+      setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0);
+    },
+    onSelectionUpdate: () => forceRender(n => n + 1),
+  });
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const errs = validate();
@@ -126,195 +154,214 @@ export default function BlogForm({ blog, isEdit = false }: BlogFormProps) {
   );
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div className="flex items-center justify-between mb-8">
+    <div className="p-8 max-w-3xl">
+      {pendingImageFile && editor && (
+        <ImageUploadModal
+          file={pendingImageFile}
+          editor={editor}
+          onClose={() => setPendingImageFile(null)}
+          onError={setError}
+        />
+      )}
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">New Blog Post</h1>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-5 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <Field label="Title" value={form.title} onChange={(v) => set('title', v)} required />
+        <Field label="Description (excerpt)" value={form.description} onChange={(v) => set('description', v)} />
+
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Meta Description</label>
+          <textarea
+            value={form.meta_description}
+            onChange={(e) => set('meta_description', e.target.value)}
+            placeholder="SEO meta description (150–160 chars recommended)"
+            rows={3}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+          />
+          <p className={`text-xs mt-1 ${
+            form.meta_description.length > 160
+              ? 'text-red-500'
+              : form.meta_description.length >= 150
+              ? 'text-green-600'
+              : 'text-gray-400'
+          }`}>
+            {form.meta_description.length} / 160 characters
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Thumbnail</label>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
+            onChange={(e) => setThumbnailFile(e.target.files?.[0] ?? null)}
+            className="w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          />
+        </div>
+
+        <Field label="Category" value={form.category} onChange={(v) => set('category', v)} placeholder="e.g. Tech, Marketing" />
+        <Field label="Sub Category" value={form.sub_category} onChange={(v) => set('sub_category', v)} placeholder="e.g. SEO, Branding" />
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">
+            Body <span className="text-red-500">*</span>
+          </label>
+          <div className="border border-gray-300 rounded-lg focus-within:ring-2 focus-within:ring-blue-500">
+            <div className="flex flex-wrap gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5 sticky top-0 z-10 rounded-t-lg">
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleBold().run()} active={editor?.isActive('bold')} title="Bold">
+                <strong>B</strong>
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleItalic().run()} active={editor?.isActive('italic')} title="Italic">
+                <em>I</em>
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleUnderline().run()} active={editor?.isActive('underline')} title="Underline">
+                <span className="underline">U</span>
+              </ToolbarButton>
+              <div className="w-px bg-gray-300 mx-1" />
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} active={editor?.isActive('heading', { level: 2 })} title="Heading 2">
+                H2
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()} active={editor?.isActive('heading', { level: 3 })} title="Heading 3">
+                H3
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleHeading({ level: 4 }).run()} active={editor?.isActive('heading', { level: 4 })} title="Heading 4">
+                H4
+              </ToolbarButton>
+              <div className="w-px bg-gray-300 mx-1" />
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleBulletList().run()} active={editor?.isActive('bulletList')} title="Bullet list">
+                &#8226; List
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleOrderedList().run()} active={editor?.isActive('orderedList')} title="Ordered list">
+                1. List
+              </ToolbarButton>
+              <div className="w-px bg-gray-300 mx-1" />
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleBlockquote().run()} active={editor?.isActive('blockquote')} title="Blockquote">
+                &ldquo;&rdquo;
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().toggleCode().run()} active={editor?.isActive('code')} title="Inline code">
+                &lt;/&gt;
+              </ToolbarButton>
+              <div className="w-px bg-gray-300 mx-1" />
+              <ToolbarButton
+                onClick={() => {
+                  const url = window.prompt('Enter URL');
+                  if (url) editor?.chain().focus().setLink({ href: url }).run();
+                  else editor?.chain().focus().unsetLink().run();
+                }}
+                active={editor?.isActive('link')}
+                title="Link"
+              >
+                Link
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().undo().run()} title="Undo">
+                ↩
+              </ToolbarButton>
+              <ToolbarButton onClick={() => editor?.chain().focus().redo().run()} title="Redo">
+                ↪
+              </ToolbarButton>
+              <div className="w-px bg-gray-300 mx-1" />
+              <ToolbarButton
+                onClick={() => imageInputRef.current?.click()}
+                title="Insert image"
+                active={false}
+              >
+                Img
+              </ToolbarButton>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (file) setPendingImageFile(file);
+                }}
+              />
+            </div>
+            <EditorContent editor={editor} />
+            <div className="px-3 py-1.5 border-t border-gray-200 bg-gray-50 text-xs text-gray-400 text-right">
+              {wordCount} {wordCount === 1 ? 'word' : 'words'}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex gap-3 pt-2">
+          <button
+            type="submit"
+            disabled={saving}
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Publishing…' : 'Publish Post'}
+          </button>
           <button
             type="button"
             onClick={() => router.back()}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-white text-sm mb-2 transition-colors"
+            className="text-gray-600 px-4 py-2.5 rounded-lg text-sm hover:bg-gray-100 transition-colors"
           >
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-          <h1 className="text-2xl font-bold text-white">{isEdit ? 'Edit Post' : 'New Post'}</h1>
-        </div>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={() => { setForm({ ...form, status: 'draft' }); }}
-            className={`px-4 py-2.5 rounded-xl text-sm font-medium border transition-all ${
-              form.status === 'draft'
-                ? 'border-yellow-600 bg-yellow-900/30 text-yellow-400'
-                : 'border-gray-700 text-gray-400 hover:border-gray-600'
-            }`}
-          >
-            Save as draft
-          </button>
-          <button
-            type="submit"
-            onClick={() => setForm((f) => ({ ...f, status: 'published' }))}
-            disabled={saving}
-            className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors"
-          >
-            {saving ? (
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <Save className="w-4 h-4" />
-            )}
-            {form.status === 'published' ? 'Publish' : 'Save'}
+            Cancel
           </button>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main content */}
-        <div className="lg:col-span-2 space-y-5">
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
-            {field('Title', 'title', 'Enter a compelling title...', true)}
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">Excerpt</label>
-              <textarea
-                value={form.excerpt}
-                onChange={(e) => setForm({ ...form, excerpt: e.target.value })}
-                placeholder="A short summary of your post..."
-                rows={3}
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none"
-              />
-            </div>
-          </div>
-
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-            <div className="p-4 border-b border-gray-800">
-              <h3 className="text-white font-medium text-sm">
-                Content <span className="text-red-400">*</span>
-              </h3>
-              {errors.content && <p className="text-red-400 text-xs mt-1">{errors.content}</p>}
-            </div>
-            <div className="bg-white">
-              <RichTextEditor
-                content={form.content}
-                onChange={(html) => setForm({ ...form, content: html })}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-5">
-          {/* Cover image */}
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-            <h3 className="text-white font-medium text-sm mb-3">Cover Image</h3>
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className={`relative cursor-pointer border-2 border-dashed rounded-xl overflow-hidden transition-colors ${
-                coverPreview ? 'border-green-600' : 'border-gray-700 hover:border-gray-500'
-              }`}
-            >
-              {coverPreview ? (
-                <div className="relative h-40">
-                  <Image src={coverPreview} alt="Cover" fill className="object-cover" />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <Upload className="w-6 h-6 text-white" />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setCoverPreview(null); setCoverFile(null); }}
-                    className="absolute top-2 right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white hover:bg-red-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              ) : (
-                <div className="h-32 flex flex-col items-center justify-center text-gray-500">
-                  <Upload className="w-6 h-6 mb-2" />
-                  <p className="text-xs">Click to upload cover</p>
-                  <p className="text-xs">PNG, JPG up to 5MB</p>
-                </div>
-              )}
-            </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleCoverChange}
-              className="hidden"
-            />
-          </div>
-
-          {/* Meta */}
-          <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5 space-y-4">
-            <h3 className="text-white font-medium text-sm">Post Details</h3>
-
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">
-                Author <span className="text-red-400">*</span>
-              </label>
-              <select
-                value={form.author_id}
-                onChange={(e) => setForm({ ...form, author_id: e.target.value })}
-                className={`w-full bg-gray-800 border rounded-xl px-3 py-2.5 text-white text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                  errors.author_id ? 'border-red-500' : 'border-gray-700'
-                }`}
-              >
-                <option value="">Select author</option>
-                {authors.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-              {errors.author_id && <p className="text-red-400 text-xs mt-1">{errors.author_id}</p>}
-            </div>
-
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">Category</label>
-              <input
-                type="text"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                placeholder="e.g. Web Development"
-                className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1.5">
-                <Tag className="w-3.5 h-3.5 inline mr-1" /> Tags
-              </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-                  placeholder="Add tag..."
-                  className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-                />
-                <button
-                  type="button"
-                  onClick={addTag}
-                  className="px-3 py-2 bg-green-600 text-white rounded-xl text-sm hover:bg-green-500 transition-colors"
-                >
-                  Add
-                </button>
-              </div>
-              {tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-green-900/50 border border-green-700 text-green-300 text-xs rounded-full"
-                    >
-                      #{tag}
-                      <button type="button" onClick={() => removeTag(tag)} className="hover:text-red-400">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </form>
+      </form>
+    </div>
+  );
+}
+function ToolbarButton({
+  onClick,
+  active,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+        active ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-200'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+function Field({
+  label,
+  value,
+  onChange,
+  required,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  placeholder?: string;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required={required}
+        placeholder={placeholder}
+        className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+    </div>
   );
 }

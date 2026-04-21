@@ -1,8 +1,11 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import api from '@/lib/api';
-import { getToken, setToken, removeToken } from '@/lib/auth';
+import { createContext, useContext, useEffect, useState } from 'react';
+import axios from 'axios';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
+import Cookies from 'js-cookie';
+import Loader from "@/components/Loader";
 
 interface User {
   id: number;
@@ -12,54 +15,114 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
-  loading: boolean;
+  isLoading: boolean;
+  setIsLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  authToken: string | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  isAuthenticated: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+export const AuthContext = createContext<AuthContextType | null>(null);
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [authToken, setAuthToken] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
-    const token = getToken();
-    if (token) {
-      api.get('/auth/me')
-        .then((res) => setUser(res.data))
-        .catch(() => removeToken())
-        .finally(() => setLoading(false));
-    } else {
-      setLoading(false);
+    const token = Cookies.get("authToken");
+    console.log('[AuthProvider] Token from cookie:', token);
+
+    if (!token) {
+      console.log('[AuthProvider] No token found');
+      setIsLoading(false);
+      return;
     }
+
+    setAuthToken(token);
+
+    axios
+      .get(`${API_URL}/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/json',
+        },
+      })
+      .then((res) => {
+        setUser(res.data);
+        console.log('[AuthProvider] User fetched:', res.data);
+      })
+      .catch((err) => {
+        console.error('[AuthProvider] Failed to fetch user', err);
+        Cookies.remove('authToken');
+        setAuthToken(null);
+        setUser(null);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await api.post('/auth/login', { email, password });
-    setToken(res.data.token);
-    setUser(res.data.user);
-  };
-
-  const logout = async () => {
+    setIsLoading(true);
     try {
-      await api.post('/auth/logout');
+      const response = await axios.post(`${API_URL}/login`, {
+        email,
+        password,
+      });
+
+      if (response.data.success) {
+        const { token, user } = response.data;
+
+        Cookies.set("authToken", token, {
+          expires: 7,
+          path: '/',
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'strict',
+        });
+
+        console.log('[AuthProvider] Cookie set successfully');
+        toast.success("Login successful");
+        setAuthToken(token);
+        setUser(user);
+        router.push('/');
+      } else {
+        toast.error(response.data.message || "Login failed");
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+      const errorMessage =
+        error.response?.data?.message ||
+        error.response?.data?.error ||
+        'Login failed. Please check your credentials.';
+      toast.error(errorMessage);
+      throw error;
     } finally {
-      removeToken();
-      setUser(null);
+      setIsLoading(false);
     }
   };
 
+  const logout = async () => {
+    Cookies.remove("authToken", { path: '/' });
+    setAuthToken(null);
+    setUser(null);
+    toast.success("Logged out successfully");
+    router.push('/login');
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, isAuthenticated: !!user }}>
-      {children}
+    <AuthContext.Provider
+      value={{ user, isLoading, setIsLoading, authToken, login, logout }}
+    >
+      {isLoading ? <Loader /> : children}
     </AuthContext.Provider>
   );
 }
 
-export function useAuth() {
+export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
-}
+};
