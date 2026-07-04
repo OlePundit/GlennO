@@ -33,6 +33,14 @@ class DatabaseSeeder extends Seeder
             'location' => 'San Francisco, CA',
         ]);
 
+        Author::create([
+            'name'    => 'Glenn Omondi',
+            'slug'    => 'glenn-omondi',
+            'email'   => 'glennomondi.go@gmail.com',
+            'bio'     => 'Software engineer writing about web development, software architecture, and the tools that make building things easier.',
+            'is_active' => true,
+        ]);
+
         $blogs = [
             [
                 'title'        => 'Getting Started with Next.js 14 and the App Router',

@@ -3,9 +3,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Rss, Eye, EyeOff, AlertCircle } from 'lucide-react';
-import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
-function LoginForm() {
+export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading, authToken, user } = useAuth();
   const [email, setEmail] = useState('admin@blog.com');
@@ -104,13 +104,5 @@ function LoginForm() {
         </div>
       </div>
     </div>
-  );
-}
-
-export default function LoginPage() {
-  return (
-    <AuthProvider>
-      <LoginForm />
-    </AuthProvider>
   );
 }

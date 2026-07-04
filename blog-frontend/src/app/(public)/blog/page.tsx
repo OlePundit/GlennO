@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Search, Filter } from 'lucide-react';
 import BlogCard from '@/components/blog/BlogCard';
 import Pagination from '@/components/ui/Pagination';
 import LoadingSpinner from '@/components/ui/LoadingSpinner';
@@ -61,102 +60,79 @@ function BlogPageContent() {
   };
 
   return (
-    <div className="pt-24 pb-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-10">
-          <h1 className="text-4xl font-bold text-white mb-2">All Articles</h1>
-          <p className="text-gray-500">
-            {blogs ? `${blogs.total} article${blogs.total !== 1 ? 's' : ''} published` : 'Loading...'}
-          </p>
-        </div>
+    <div className="max-w-2xl mx-auto px-6 pt-16 pb-20">
+      <h1 className="text-2xl font-semibold text-white mb-1">All posts</h1>
+      <p className="text-gray-500 text-sm mb-8">
+        {blogs ? `${blogs.total} article${blogs.total !== 1 ? 's' : ''}` : 'Loading…'}
+      </p>
 
-        {/* Search + Filter bar */}
-        <div className="bg-gray-900 rounded-2xl border border-gray-800 shadow-sm p-4 mb-8 flex flex-col sm:flex-row gap-3">
-          <form onSubmit={handleSearch} className="flex flex-1 gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search articles..."
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
-            >
-              Search
-            </button>
-          </form>
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        <form onSubmit={handleSearch} className="flex-1">
+          <input
+            type="text"
+            placeholder="Search posts…"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pb-2 border-b border-gray-700 bg-transparent text-white placeholder-gray-500 focus:outline-none focus:border-green-500 text-sm"
+          />
+        </form>
 
-          {categories.length > 0 && (
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
-              <select
-                value={currentCategory}
-                onChange={(e) => updateQuery({ category: e.target.value })}
-                className="py-2.5 px-3 rounded-lg border border-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm bg-gray-800 text-white"
-              >
-                <option value="">All categories</option>
-                {categories.map((cat) => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* Active filters */}
-        {(currentCategory || currentSearch) && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {currentCategory && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-900/40 text-green-300 rounded-full text-sm font-medium">
-                Category: {currentCategory}
-                <button onClick={() => updateQuery({ category: '' })} className="hover:text-white ml-1">×</button>
-              </span>
-            )}
-            {currentSearch && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-900/40 text-green-300 rounded-full text-sm font-medium">
-                Search: {currentSearch}
-                <button onClick={() => { setSearchInput(''); updateQuery({ search: '' }); }} className="hover:text-white ml-1">×</button>
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Blog grid */}
-        {loading ? (
-          <LoadingSpinner size="lg" />
-        ) : !blogs || blogs.data.length === 0 ? (
-          <div className="text-center py-24">
-            <div className="text-6xl mb-4">📭</div>
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No articles found</h3>
-            <p className="text-gray-400">Try adjusting your search or filter criteria.</p>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {blogs.data.map((blog) => (
-                <BlogCard key={blog.id} blog={blog} />
-              ))}
-            </div>
-
-            <Pagination
-              currentPage={blogs.current_page}
-              lastPage={blogs.last_page}
-              onPageChange={(page) => {
-                const params = new URLSearchParams(searchParams.toString());
-                params.set('page', String(page));
-                router.push(`/blog?${params.toString()}`);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-            />
-          </>
+        {categories.length > 0 && (
+          <select
+            value={currentCategory}
+            onChange={(e) => updateQuery({ category: e.target.value })}
+            className="pb-2 border-b border-gray-700 bg-transparent focus:outline-none focus:border-green-500 text-sm text-gray-400"
+          >
+            <option value="" className="bg-gray-900">All categories</option>
+            {categories.map((cat) => (
+              <option key={cat} value={cat} className="bg-gray-900">{cat}</option>
+            ))}
+          </select>
         )}
       </div>
+
+      {(currentCategory || currentSearch) && (
+        <div className="flex flex-wrap gap-3 mb-6 text-sm">
+          {currentCategory && (
+            <button onClick={() => updateQuery({ category: '' })} className="text-gray-400 hover:text-green-400">
+              Category: {currentCategory} ×
+            </button>
+          )}
+          {currentSearch && (
+            <button
+              onClick={() => { setSearchInput(''); updateQuery({ search: '' }); }}
+              className="text-gray-400 hover:text-green-400"
+            >
+              Search: {currentSearch} ×
+            </button>
+          )}
+        </div>
+      )}
+
+      {loading ? (
+        <LoadingSpinner size="lg" />
+      ) : !blogs || blogs.data.length === 0 ? (
+        <p className="text-gray-500 py-16 text-center">No articles found.</p>
+      ) : (
+        <>
+          <div className="divide-y divide-gray-800 mt-4">
+            {blogs.data.map((blog) => (
+              <BlogCard key={blog.id} blog={blog} />
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={blogs.current_page}
+            lastPage={blogs.last_page}
+            onPageChange={(page) => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.set('page', String(page));
+              router.push(`/blog?${params.toString()}`);
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

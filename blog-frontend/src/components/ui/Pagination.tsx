@@ -1,7 +1,5 @@
 'use client';
 
-import { ChevronLeft, ChevronRight } from 'lucide-react';
-
 interface PaginationProps {
   currentPage: number;
   lastPage: number;
@@ -11,47 +9,26 @@ interface PaginationProps {
 export default function Pagination({ currentPage, lastPage, onPageChange }: PaginationProps) {
   if (lastPage <= 1) return null;
 
-  const pages = Array.from({ length: lastPage }, (_, i) => i + 1);
-  const showPages = pages.filter(
-    (p) => p === 1 || p === lastPage || (p >= currentPage - 1 && p <= currentPage + 1)
-  );
-
   return (
-    <div className="flex items-center justify-center gap-1 mt-12">
+    <div className="flex items-center justify-between mt-12 text-sm border-t border-gray-800 pt-6">
       <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        className="text-gray-400 hover:text-green-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
-        <ChevronLeft className="w-4 h-4" />
+        ← Previous
       </button>
 
-      {showPages.map((page, i) => {
-        const prev = showPages[i - 1];
-        const showEllipsis = prev && page - prev > 1;
-        return (
-          <div key={page} className="flex items-center gap-1">
-            {showEllipsis && <span className="px-2 text-gray-400">...</span>}
-            <button
-              onClick={() => onPageChange(page)}
-              className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
-                page === currentPage
-                  ? 'bg-green-600 text-white shadow-sm shadow-green-900'
-                  : 'border border-gray-700 text-gray-400 hover:bg-gray-800'
-              }`}
-            >
-              {page}
-            </button>
-          </div>
-        );
-      })}
+      <span className="text-gray-500">
+        Page {currentPage} of {lastPage}
+      </span>
 
       <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === lastPage}
-        className="p-2 rounded-lg border border-gray-700 text-gray-400 hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+        className="text-gray-400 hover:text-green-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
       >
-        <ChevronRight className="w-4 h-4" />
+        Next →
       </button>
     </div>
   );

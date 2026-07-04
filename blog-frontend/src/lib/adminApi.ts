@@ -1,3 +1,5 @@
+import Cookies from 'js-cookie';
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -5,7 +7,7 @@ const API_URL = BASE_URL.endsWith('/api') ? BASE_URL : `${BASE_URL}/api`;
 
 function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('admin_token');
+  return Cookies.get('authToken') ?? null;
 }
 
 async function request<T = unknown>(
@@ -275,7 +277,7 @@ export async function deleteNewsletter(id: number) {
 // ─── Body Image Upload ────────────────────────────────────────────────────────
 
 export async function uploadBodyImage(file: File): Promise<string> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+  const token = getToken();
   const form = new FormData();
   form.append('image', file);
   const res = await fetch(`${API_URL}/upload-image`, {

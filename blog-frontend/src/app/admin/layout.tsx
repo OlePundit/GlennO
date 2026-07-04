@@ -16,7 +16,7 @@ const navItems = [
 ];
 
 function AdminLayoutInner({ children }: { children: React.ReactNode }) {
-  const { login, isLoading, authToken, user } = useAuth();
+  const { logout, isLoading, authToken, user } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 

@@ -79,11 +79,8 @@ class AuthController extends Controller
                 'success' => true,
                 'user' => [
                     'id' => $user->id,
-                    'name' => $user->user_type, // Changed from name to user_type
+                    'name' => $user->name,
                     'email' => $user->email,
-                    'user_type' => $user->user_type,
-                    'grade' => $user->grade ?? null,
-                    'avatar' => $user->avatar ?? null,
                 ],
                 'token' => $token,
                 'message' => 'Login successful'
